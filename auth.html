@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ka">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AURUM • ავტორიზაცია</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-page="auth">
+    <header class="topbar">
+      <a class="brand" href="index.html">AURUM</a>
+
+      <div class="search">
+        <input
+          id="searchInput"
+          type="text"
+          placeholder="მოძებნე დასახელებით..."
+        />
+        <button class="iconBtn" id="searchBtn" aria-label="search">🔍</button>
+      </div>
+
+      <div class="topActions">
+        <a class="iconBtn" href="cart.html" title="კალათა">
+          🧺 <span class="badge" id="cartBadge">0</span>
+        </a>
+        <button class="iconBtn" id="authBtn" title="მომხმარებელი">👤</button>
+        <span class="userName" id="userName">სტუმარი</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar" id="sidebar"></aside>
+      
+      <section class="content" id="app">
+        <div class="pageTitle">ავტორიზაცია</div>
+        
+        <div class="authContainer">
+          <!-- Tab buttons -->
+          <div class="authTabs">
+            <button class="authTab active" data-tab="signin">შესვლა</button>
+            <button class="authTab" data-tab="signup">რეგისტრაცია</button>
+          </div>
+
+          <!-- Sign In Form -->
+          <form class="authForm" id="signinForm">
+            <div class="formGroup">
+              <label for="signinEmail">ელ-ფოსტა *</label>
+              <input type="email" id="signinEmail" class="input" placeholder="example@mail.com" required />
+            </div>
+
+            <div class="formGroup">
+              <label for="signinPassword">პაროლი *</label>
+              <input type="password" id="signinPassword" class="input" placeholder="პაროლი" required />
+            </div>
+
+            <button type="submit" class="btn gold authSubmit">შესვლა</button>
+            
+            <div class="authMessage" id="signinMessage"></div>
+          </form>
+
+          <!-- Sign Up Form -->
+          <form class="authForm hidden" id="signupForm">
+            <div class="formRow">
+              <div class="formGroup">
+                <label for="signupFirstName">სახელი *</label>
+                <input type="text" id="signupFirstName" class="input" placeholder="სახელი" required />
+              </div>
+
+              <div class="formGroup">
+                <label for="signupLastName">გვარი *</label>
+                <input type="text" id="signupLastName" class="input" placeholder="გვარი" required />
+              </div>
+            </div>
+
+            <div class="formRow">
+              <div class="formGroup">
+                <label for="signupAge">ასაკი *</label>
+                <input type="number" id="signupAge" class="input" placeholder="25" min="1" max="120" required />
+              </div>
+
+              <div class="formGroup">
+                <label for="signupGender">სქესი *</label>
+                <select id="signupGender" class="input" required>
+                  <option value="">აირჩიე</option>
+                  <option value="MALE">მამრობითი</option>
+                  <option value="FEMALE">მდედრობითი</option>
+                  <option value="OTHER">სხვა</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="formGroup">
+              <label for="signupEmail">ელ-ფოსტა *</label>
+              <input type="email" id="signupEmail" class="input" placeholder="example@mail.com" required />
+            </div>
+
+            <div class="formGroup">
+              <label for="signupPassword">პაროლი *</label>
+              <input type="password" id="signupPassword" class="input" placeholder="მინიმუმ 8 სიმბოლო" minlength="8" required />
+            </div>
+
+            <div class="formGroup">
+              <label for="signupPhone">ტელეფონი *</label>
+              <input type="tel" id="signupPhone" class="input" placeholder="+995599123456" required />
+            </div>
+
+            <div class="formGroup">
+              <label for="signupAddress">მისამართი *</label>
+              <input type="text" id="signupAddress" class="input" placeholder="თბილისი, საქართველო" required />
+            </div>
+
+            <div class="formGroup">
+              <label for="signupZipcode">საფოსტო კოდი *</label>
+              <input type="text" id="signupZipcode" class="input" placeholder="0100" required />
+            </div>
+
+            <div class="formGroup">
+              <label for="signupAvatar">ავატარის URL (არასავალდებულო)</label>
+              <input type="url" id="signupAvatar" class="input" placeholder="https://example.com/avatar.jpg" />
+            </div>
+
+            <button type="submit" class="btn gold authSubmit">რეგისტრაცია</button>
+            
+            <div class="authMessage" id="signupMessage"></div>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

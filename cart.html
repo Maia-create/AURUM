@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ka">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AURUM • კალათა</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-page="cart">
+    <header class="topbar">
+      <a class="brand" href="index.html">AURUM</a>
+
+      <div class="search">
+        <input
+          id="searchInput"
+          type="text"
+          placeholder="მოძებნე დასახელებით..."
+        />
+        <button class="iconBtn" id="searchBtn" aria-label="search">🔍</button>
+      </div>
+
+      <div class="topActions">
+        <a class="iconBtn" href="cart.html" title="კალათა">
+          🧺 <span class="badge" id="cartBadge">0</span>
+        </a>
+        <button class="iconBtn" id="authBtn" title="მომხმარებელი">👤</button>
+        <span class="userName" id="userName">სტუმარი</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar" id="sidebar"></aside>
+      <section class="content" id="app">
+        <div style="text-align:center; padding:50px; color:var(--muted);">
+          იტვირთება...
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
