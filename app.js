@@ -491,6 +491,8 @@ if (searchInput) {
 //  HOME PAGE 
 async function renderHome() {
   if (!appEl) return;
+  const PAGE_SIZE = 12;
+
 
   // URL პარამეტრები
   const params = new URLSearchParams(window.location.search);
@@ -513,14 +515,17 @@ async function renderHome() {
 
   try {
     // პროდუქტების ჩატვირთვა 
-    let url = `https://api.everrest.educata.dev/shop/products/all?page_index=${currentPage}`;
+    let url = `https://api.everrest.educata.dev/shop/products/all?page_index=${currentPage}&page_size=${PAGE_SIZE}`;
+
     
     if (searchQuery) {
-      url = `https://api.everrest.educata.dev/shop/products/search?page_index=${currentPage}&keywords=${encodeURIComponent(searchQuery)}`;
+      url = `https://api.everrest.educata.dev/shop/products/search?page_index=${currentPage}&page_size=${PAGE_SIZE}&keywords=${encodeURIComponent(searchQuery)}`;
     } else if (catParam) {
-      url = `https://api.everrest.educata.dev/shop/products/category/${catParam}?page_index=${currentPage}`;
+      url = `https://api.everrest.educata.dev/shop/products/category/${catParam}?page_index=${currentPage}&page_size=${PAGE_SIZE}`;
+
     } else if (brandParam) {
-      url = `https://api.everrest.educata.dev/shop/products/brand/${brandParam}?page_index=${currentPage}`;
+      url = `https://api.everrest.educata.dev/shop/products/brand/${brandParam}?page_index=${currentPage}&page_size=${PAGE_SIZE}`;
+
     }
 
     
@@ -540,7 +545,8 @@ async function renderHome() {
     
     // პაგინაციისთვის
     const apiTotal = data.total || products.length;
-    const apiLimit = data.limit || 5;
+    const apiLimit = data.limit || PAGE_SIZE;
+
     
     // კლიენტის მხარეს ფილტრაცია 
     if (minPriceParam > 0 || maxPriceParam < 999999 || ratingParam > 0) {
