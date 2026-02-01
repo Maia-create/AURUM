@@ -172,17 +172,7 @@ function updateUserUI() {
 
 function handleAuthClick() {
   if (getAccessToken()) {
-    // Logout 
-    fetch("https://api.everrest.educata.dev/auth/sign_out", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${getAccessToken()}` },
-    }).finally(() => {
-      clearTokens();
-      updateUserUI();
-      updateCartBadge();
-      showToast("წარმატებით გამოხვედით ✅", "success");
-      setTimeout(() => window.location.reload(), 1000);
-    });
+    window.location.href = "profile.html";
   } else {
     window.location.href = "auth.html";
   }
@@ -194,24 +184,27 @@ if (authBtn) authBtn.addEventListener("click", handleAuthClick);
 function setupAuthPage() {
   const signinForm = document.getElementById("signinForm");
   const signupForm = document.getElementById("signupForm");
+  const recoveryForm = document.getElementById("recoveryForm");
   const authTabs = document.querySelectorAll(".authTab");
   const signinMessage = document.getElementById("signinMessage");
   const signupMessage = document.getElementById("signupMessage");
+  const recoveryMessage = document.getElementById("recoveryMessage");
 
   if (!signinForm || !signupForm) return;
+
+  const allForms = { signin: signinForm, signup: signupForm, recovery: recoveryForm };
 
   authTabs.forEach((tab) => {
     tab.addEventListener("click", () => {
       authTabs.forEach((t) => t.classList.remove("active"));
       tab.classList.add("active");
       const tabName = tab.getAttribute("data-tab");
-      if (tabName === "signin") {
-        signinForm.classList.remove("hidden");
-        signupForm.classList.add("hidden");
-      } else {
-        signinForm.classList.add("hidden");
-        signupForm.classList.remove("hidden");
-      }
+      Object.entries(allForms).forEach(([key, form]) => {
+        if (form) {
+          if (key === tabName) form.classList.remove("hidden");
+          else form.classList.add("hidden");
+        }
+      });
     });
   });
 
@@ -233,11 +226,6 @@ function setupAuthPage() {
       return;
     }
 
-    if (!isValid(password, regexData.password)) {
-      setFormMessage(signinMessage, "პაროლი უნდა შეიცავდეს მინიმუმ 8 სიმბოლოს");
-      return;
-    }
-
     try {
       signinMessage.textContent = "იტვირთება...";
 
@@ -255,7 +243,21 @@ function setupAuthPage() {
       }
 
       setTokens(data.access_token, data.refresh_token);
-      setUser({ email, firstName: email.split("@")[0] });
+      
+      // მომხმარებლის ინფო ჩატვირთვა
+      try {
+        const userRes = await fetch("https://api.everrest.educata.dev/auth", {
+          headers: { Authorization: `Bearer ${data.access_token}` },
+        });
+        if (userRes.ok) {
+          const userData = await userRes.json();
+          setUser({ email: userData.email, firstName: userData.firstName });
+        } else {
+          setUser({ email, firstName: email.split("@")[0] });
+        }
+      } catch {
+        setUser({ email, firstName: email.split("@")[0] });
+      }
 
       signinMessage.textContent = "წარმატებით შეხვედით! ✅";
       signinMessage.className = "authMessage success";
@@ -356,6 +358,48 @@ function setupAuthPage() {
       signupMessage.className = "authMessage error";
     }
   });
+
+  // Recovery
+  if (recoveryForm) {
+    recoveryForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      recoveryMessage.textContent = "";
+
+      const email = document.getElementById("recoveryEmail").value.trim();
+
+      if (!email) {
+        setFormMessage(recoveryMessage, "შეიყვანეთ ელ-ფოსტა");
+        return;
+      }
+
+      if (!isValid(email, regexData.email)) {
+        setFormMessage(recoveryMessage, "ელ-ფოსტის ფორმატი არასწორია");
+        return;
+      }
+
+      try {
+        recoveryMessage.textContent = "იგზავნება...";
+        recoveryMessage.className = "authMessage";
+
+        const res = await fetch("https://api.everrest.educata.dev/auth/recovery", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.message || "აღდგენა ვერ მოხერხდა");
+        }
+
+        setFormMessage(recoveryMessage, data.message || "აღდგენის ლინკი გაიგზავნა! ✅", "success");
+      } catch (e) {
+        recoveryMessage.textContent = e.message;
+        recoveryMessage.className = "authMessage error";
+      }
+    });
+  }
 }
 
 //  CART
@@ -864,6 +908,46 @@ async function renderProductDetail() {
     
     const issueDate = p.issueDate ? new Date(p.issueDate).toLocaleDateString("ka-GE") : "-";
 
+    // რეიტინგების ავტორების ჩატვირთვა /auth/all
+    const userCache = {};
+    const userIds = ratings
+      .map(r => (typeof r === "object" && r !== null) ? (r.userId || r.user_id || r._id) : null)
+      .filter(Boolean);
+    
+    if (userIds.length > 0) {
+      try {
+        const headers = {};
+        const token = getAccessToken();
+        if (token) headers.Authorization = `Bearer ${token}`;
+        
+        const needed = new Set(userIds);
+        let pageIdx = 1;
+        let hasMore = true;
+
+        while (hasMore && needed.size > Object.keys(userCache).length) {
+          const allRes = await fetch(`https://api.everrest.educata.dev/auth/all?page_index=${pageIdx}&page_size=50`, { headers });
+          if (!allRes.ok) break;
+          
+          const allData = await allRes.json();
+          const users = allData.users || [];
+          const total = allData.total || 0;
+          
+          for (const u of users) {
+            if (needed.has(u._id)) {
+              userCache[u._id] = u;
+            }
+          }
+
+          // ყველა ნაპოვნია ან გვერდები ამოიწურა
+          if (Object.keys(userCache).length >= needed.size) break;
+          if (pageIdx * 50 >= total) break;
+          pageIdx++;
+        }
+      } catch (e) {
+        console.warn("Failed to fetch users:", e);
+      }
+    }
+
     // ფოტოების მასივი 
     let images = [];
     if (p.thumbnail) images.push(p.thumbnail);
@@ -954,19 +1038,33 @@ async function renderProductDetail() {
                ${ratings.map((rObj, idx) => {
   const numRating =
     typeof rObj === "object" && rObj !== null
-      ? Number(rObj.value ?? rObj.rate ?? rObj.rating ?? 0)  
+      ? Number(rObj.value ?? rObj.rating ?? rObj.rate ?? 0)  
       : Number(rObj) || 0;
 
-  const userLabel =
-    typeof rObj === "object" && rObj !== null && rObj.userId
-      ? `მომხმარებელი ${String(rObj.userId).slice(0, 6)}...`
-      : `მომხმარებელი ${idx + 1}`;
+  const uid = (typeof rObj === "object" && rObj !== null) ? (rObj.userId || rObj.user_id || rObj._id) : null;
+  const cachedUser = uid ? userCache[uid] : null;
+
+  let userName;
+  let userAvatar;
+
+  if (cachedUser && (cachedUser.firstName || cachedUser.lastName)) {
+    userName = `${escapeHtml(cachedUser.firstName || "")} ${escapeHtml(cachedUser.lastName || "")}`.trim();
+    userAvatar = cachedUser.avatar
+      ? `<img src="${escapeHtml(cachedUser.avatar)}" style="width:100%;height:100%;border-radius:999px;object-fit:cover;" onerror="this.parentElement.innerHTML='👤'">`
+      : '👤';
+  } else if (uid) {
+    userName = `მომხმარებელი ${String(uid).slice(0, 6)}...`;
+    userAvatar = '👤';
+  } else {
+    userName = `მომხმარებელი ${idx + 1}`;
+    userAvatar = '👤';
+  }
 
   return `
     <div class="reviewItem">
-      <div class="avatar">👤</div>
+      <div class="avatar">${userAvatar}</div>
       <div style="flex:1;">
-        <div class="reviewName">${userLabel}</div>
+        <div class="reviewName">${userName}</div>
         <div>${stars(numRating)} <span style="color:var(--muted);font-size:11px;">(${numRating})</span></div>
       </div>
     </div>
@@ -1372,6 +1470,419 @@ async function renderCart() {
   }
 }
 
+// PROFILE PAGE
+async function renderProfile() {
+  if (!appEl) return;
+
+  if (sidebarEl) {
+    sidebarEl.innerHTML = `
+      <a class="btn ghost" href="index.html">← მთავარი</a>
+      <a class="btn gold" href="cart.html" style="margin-top:10px;">კალათა 🧺</a>
+    `;
+  }
+
+  // არაავტორიზებული
+  if (!getAccessToken()) {
+    appEl.innerHTML = `
+      <div class="pageTitle">ჩემი პროფილი</div>
+      <div style="text-align:center; padding:50px;">
+        <div style="font-size:60px;">🔐</div>
+        <p style="color:var(--muted)">პროფილის სანახავად გაიარეთ ავტორიზაცია</p>
+        <a class="btn gold" href="auth.html" style="max-width:200px; margin:0 auto;">შესვლა</a>
+      </div>
+    `;
+    return;
+  }
+
+  try {
+    // მომხმარებლის ინფო ჩატვირთვა
+    const res = await fetch("https://api.everrest.educata.dev/auth", {
+      headers: { Authorization: `Bearer ${getAccessToken()}` },
+    });
+
+    if (!res.ok) {
+      throw new Error("მომხმარებლის ინფორმაცია ვერ ჩაიტვირთა. გთხოვთ, გაიაროთ ელექტრონული ფოსტით ვერიფიკაცია");
+    }
+
+    const user = await res.json();
+
+    // Cookie-ში შენახვა განახლებული ინფოთი
+    setUser({ email: user.email, firstName: user.firstName });
+    updateUserUI();
+
+    const genderMap = { MALE: "მამრობითი", FEMALE: "მდედრობითი", OTHER: "სხვა" };
+
+    appEl.innerHTML = `
+      <div class="pageTitle">ჩემი პროფილი</div>
+      <div class="profileContainer">
+
+        <!-- პროფილის ჰედერი -->
+        <div class="profileHeader">
+          <div class="profileAvatar">
+            <img src="${escapeHtml(user.avatar || "")}" alt="ავატარი" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:32px;\\'>👤</div>';">
+          </div>
+          <div class="profileInfo">
+            <div class="profileName">${escapeHtml(user.firstName || "")} ${escapeHtml(user.lastName || "")}</div>
+            <div class="profileEmail">${escapeHtml(user.email || "")}</div>
+            <div class="profileRole">
+              <span class="roleBadge">${escapeHtml(user.role || "default")}</span>
+              ${user.verified ? '<span class="roleBadge" style="background:rgba(40,167,69,.15); border-color:rgba(40,167,69,.3); color:#51cf66;">✓ ვერიფიცირებული</span>' : '<span class="roleBadge" style="background:rgba(220,53,69,.15); border-color:rgba(220,53,69,.3); color:#ff6b6b;">არავერიფიცირებული</span>'}
+            </div>
+          </div>
+          <div class="profileHeaderActions">
+            <button class="btn ghost" id="logoutBtn">გასვლა 🚪</button>
+          </div>
+        </div>
+
+        <!-- პირადი ინფორმაცია (ხილვა) -->
+        <div class="profileSection" id="viewSection">
+          <div class="profileSectionHead">
+            <div class="profileSectionTitle">👤 პირადი ინფორმაცია</div>
+            <button class="btn ghost" id="editProfileBtn" style="width:auto; min-width:100px;">რედაქტირება ✏️</button>
+          </div>
+          <div class="profileGrid">
+            <div class="profileField">
+              <div class="profileFieldLabel">სახელი</div>
+              <div class="profileFieldValue">${escapeHtml(user.firstName || "-")}</div>
+            </div>
+            <div class="profileField">
+              <div class="profileFieldLabel">გვარი</div>
+              <div class="profileFieldValue">${escapeHtml(user.lastName || "-")}</div>
+            </div>
+            <div class="profileField">
+              <div class="profileFieldLabel">ასაკი</div>
+              <div class="profileFieldValue">${user.age || "-"}</div>
+            </div>
+            <div class="profileField">
+              <div class="profileFieldLabel">სქესი</div>
+              <div class="profileFieldValue">${genderMap[user.gender] || user.gender || "-"}</div>
+            </div>
+            <div class="profileField">
+              <div class="profileFieldLabel">ტელეფონი</div>
+              <div class="profileFieldValue">${escapeHtml(user.phone || "-")}</div>
+            </div>
+            <div class="profileField">
+              <div class="profileFieldLabel">საფოსტო კოდი</div>
+              <div class="profileFieldValue">${escapeHtml(user.zipcode || "-")}</div>
+            </div>
+            <div class="profileField full">
+              <div class="profileFieldLabel">მისამართი</div>
+              <div class="profileFieldValue">${escapeHtml(user.address || "-")}</div>
+            </div>
+            <div class="profileField full">
+              <div class="profileFieldLabel">ავატარი</div>
+              <div class="profileFieldValue" style="font-size:11px; color:var(--muted); overflow:hidden; text-overflow:ellipsis;">${escapeHtml(user.avatar || "-")}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- პროფილის რედაქტირება (დამალული) -->
+        <div class="profileSection hidden" id="editSection">
+          <div class="profileSectionHead">
+            <div class="profileSectionTitle">✏️ პროფილის რედაქტირება</div>
+          </div>
+          <div class="profileEditGrid">
+            <div class="formGroup">
+              <label for="editFirstName">სახელი *</label>
+              <input type="text" id="editFirstName" class="input" value="${escapeHtml(user.firstName || "")}" required />
+            </div>
+            <div class="formGroup">
+              <label for="editLastName">გვარი *</label>
+              <input type="text" id="editLastName" class="input" value="${escapeHtml(user.lastName || "")}" required />
+            </div>
+            <div class="formGroup">
+              <label for="editAge">ასაკი *</label>
+              <input type="number" id="editAge" class="input" value="${user.age || ""}" min="1" max="120" required />
+            </div>
+            <div class="formGroup">
+              <label for="editGender">სქესი *</label>
+              <select id="editGender" class="input" required>
+                <option value="MALE" ${user.gender === "MALE" ? "selected" : ""}>მამრობითი</option>
+                <option value="FEMALE" ${user.gender === "FEMALE" ? "selected" : ""}>მდედრობითი</option>
+                <option value="OTHER" ${user.gender === "OTHER" ? "selected" : ""}>სხვა</option>
+              </select>
+            </div>
+            <div class="formGroup">
+              <label for="editPhone">ტელეფონი *</label>
+              <input type="tel" id="editPhone" class="input" value="${escapeHtml(user.phone || "")}" required />
+            </div>
+            <div class="formGroup">
+              <label for="editZipcode">საფოსტო კოდი *</label>
+              <input type="text" id="editZipcode" class="input" value="${escapeHtml(user.zipcode || "")}" required />
+            </div>
+            <div class="formGroup full">
+              <label for="editAddress">მისამართი *</label>
+              <input type="text" id="editAddress" class="input" value="${escapeHtml(user.address || "")}" required />
+            </div>
+            <div class="formGroup full">
+              <label for="editAvatar">ავატარის URL</label>
+              <input type="url" id="editAvatar" class="input" value="${escapeHtml(user.avatar || "")}" />
+            </div>
+          </div>
+          <div class="profileEditActions">
+            <button class="btn gold" id="saveProfileBtn">შენახვა ✅</button>
+            <button class="btn ghost" id="cancelEditBtn">გაუქმება</button>
+          </div>
+          <div class="authMessage" id="editMessage" style="margin:0 18px 16px;"></div>
+        </div>
+
+        <!-- პაროლის შეცვლა -->
+        <div class="profileSection">
+          <div class="profileSectionHead">
+            <div class="profileSectionTitle">🔑 პაროლის შეცვლა</div>
+          </div>
+          <div class="passwordGrid">
+            <div class="formGroup">
+              <label for="oldPassword">ძველი პაროლი *</label>
+              <input type="password" id="oldPassword" class="input" placeholder="ძველი პაროლი" />
+            </div>
+            <div class="formGroup">
+              <label for="newPassword">ახალი პაროლი *</label>
+              <input type="password" id="newPassword" class="input" placeholder="მინიმუმ 8 სიმბოლო" />
+            </div>
+          </div>
+          <div class="passwordActions">
+            <button class="btn gold" id="changePasswordBtn">პაროლის შეცვლა</button>
+            <div class="authMessage" id="passwordMessage" style="flex:1;"></div>
+          </div>
+        </div>
+
+        <!-- ანგარიშის წაშლა -->
+        <div class="profileSection dangerSection">
+          <div class="profileSectionHead">
+            <div class="profileSectionTitle">⚠️ საშიში ზონა</div>
+          </div>
+          <div class="dangerBody">
+            <div class="dangerText">ანგარიშის წაშლა შეუქცევადია. ყველა მონაცემი, კალათა და შეკვეთის ისტორია სამუდამოდ წაიშლება.</div>
+            <button class="btn danger" id="deleteAccountBtn">ანგარიშის წაშლა 🗑</button>
+          </div>
+        </div>
+
+      </div>
+    `;
+
+   
+
+    // გასვლა
+    document.getElementById("logoutBtn")?.addEventListener("click", async () => {
+      const confirmed = await showConfirm("ნამდვილად გსურთ გასვლა?", "გასვლა");
+      if (!confirmed) return;
+
+      try {
+        await fetch("https://api.everrest.educata.dev/auth/sign_out", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${getAccessToken()}` },
+        });
+      } catch (e) {
+        console.error("Sign out error:", e);
+      }
+
+      clearTokens();
+      updateUserUI();
+      updateCartBadge();
+      showToast("წარმატებით გამოხვედით ✅", "success");
+      setTimeout(() => {
+        window.location.href = "index.html";
+      }, 1000);
+    });
+
+    // რედაქტირების ჩართვა
+    document.getElementById("editProfileBtn")?.addEventListener("click", () => {
+      document.getElementById("viewSection").classList.add("hidden");
+      document.getElementById("editSection").classList.remove("hidden");
+    });
+
+    // რედაქტირების გაუქმება
+    document.getElementById("cancelEditBtn")?.addEventListener("click", () => {
+      document.getElementById("editSection").classList.add("hidden");
+      document.getElementById("viewSection").classList.remove("hidden");
+      document.getElementById("editMessage").textContent = "";
+    });
+
+    // პროფილის შენახვა
+    document.getElementById("saveProfileBtn")?.addEventListener("click", async () => {
+      const editMessage = document.getElementById("editMessage");
+      editMessage.textContent = "";
+
+      const firstName = document.getElementById("editFirstName").value.trim();
+      const lastName = document.getElementById("editLastName").value.trim();
+      const age = Number(document.getElementById("editAge").value);
+      const gender = document.getElementById("editGender").value;
+      const phone = document.getElementById("editPhone").value.trim();
+      const zipcode = document.getElementById("editZipcode").value.trim();
+      const address = document.getElementById("editAddress").value.trim();
+      const avatar = document.getElementById("editAvatar").value.trim() || "https://i.imgur.com/IBhCeeP.jpg";
+
+      // ვალიდაცია
+      if (!firstName || !lastName || !age || !gender || !phone || !address || !zipcode) {
+        setFormMessage(editMessage, "შეავსეთ ყველა სავალდებულო ველი");
+        return;
+      }
+      if (!isValidName(firstName)) {
+        setFormMessage(editMessage, "სახელი არასწორია (2-30 სიმბოლო, ქართული ან ლათინური)");
+        return;
+      }
+      if (!isValidName(lastName)) {
+        setFormMessage(editMessage, "გვარი არასწორია (2-30 სიმბოლო, ქართული ან ლათინური)");
+        return;
+      }
+      if (!isValid(age, regexData.age)) {
+        setFormMessage(editMessage, "ასაკი უნდა იყოს 1-დან 120-მდე");
+        return;
+      }
+      if (!isValid(phone, regexData.phoneGE)) {
+        setFormMessage(editMessage, "ტელეფონის ფორმატი: +9955XXXXXXXX ან +9957XXXXXXXX");
+        return;
+      }
+      if (!isValid(address, regexData.address)) {
+        setFormMessage(editMessage, "მისამართი უნდა იყოს 5-120 სიმბოლო");
+        return;
+      }
+      if (!isValid(zipcode, regexData.zipcode)) {
+        setFormMessage(editMessage, "საფოსტო კოდი უნდა იყოს 4-6 ციფრი");
+        return;
+      }
+      if (avatar && avatar !== "https://i.imgur.com/IBhCeeP.jpg" && !isValid(avatar, regexData.url)) {
+        setFormMessage(editMessage, "ავატარის URL არასწორია");
+        return;
+      }
+
+      try {
+        editMessage.textContent = "იტვირთება...";
+        editMessage.className = "authMessage";
+
+        const updateRes = await fetch("https://api.everrest.educata.dev/auth/update", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${getAccessToken()}`,
+          },
+          body: JSON.stringify({ firstName, lastName, age, address, phone, zipcode, avatar, gender }),
+        });
+
+        const updateData = await updateRes.json();
+
+        if (!updateRes.ok) {
+          throw new Error(updateData.message || "განახლება ვერ მოხერხდა");
+        }
+
+        setFormMessage(editMessage, "პროფილი წარმატებით განახლდა! ✅", "success");
+        showToast("პროფილი განახლდა ✅", "success");
+
+        // გვერდის თავიდან ჩატვირთვა 1.5 წამში
+        setTimeout(() => {
+          renderProfile();
+        }, 1500);
+
+      } catch (e) {
+        setFormMessage(editMessage, e.message);
+      }
+    });
+
+    // პაროლის შეცვლა
+    document.getElementById("changePasswordBtn")?.addEventListener("click", async () => {
+      const passwordMessage = document.getElementById("passwordMessage");
+      passwordMessage.textContent = "";
+
+      const oldPassword = document.getElementById("oldPassword").value;
+      const newPassword = document.getElementById("newPassword").value;
+
+      if (!oldPassword || !newPassword) {
+        setFormMessage(passwordMessage, "შეავსეთ ორივე ველი");
+        return;
+      }
+
+      if (!isValid(newPassword, regexData.password)) {
+        setFormMessage(passwordMessage, "ახალი პაროლი მინიმუმ 8 სიმბოლო");
+        return;
+      }
+
+      try {
+        passwordMessage.textContent = "იტვირთება...";
+        passwordMessage.className = "authMessage";
+
+        const pwRes = await fetch("https://api.everrest.educata.dev/auth/change_password", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${getAccessToken()}`,
+          },
+          body: JSON.stringify({ oldPassword, newPassword }),
+        });
+
+        const pwData = await pwRes.json();
+
+        if (!pwRes.ok) {
+          throw new Error(pwData.message || "პაროლის შეცვლა ვერ მოხერხდა");
+        }
+
+        // ახალი ტოკენების შენახვა
+        if (pwData.access_token && pwData.refresh_token) {
+          setTokens(pwData.access_token, pwData.refresh_token);
+        }
+
+        setFormMessage(passwordMessage, "პაროლი წარმატებით შეიცვალა! ✅", "success");
+        showToast("პაროლი შეიცვალა ✅", "success");
+
+        // ველების გასუფთავება
+        document.getElementById("oldPassword").value = "";
+        document.getElementById("newPassword").value = "";
+
+      } catch (e) {
+        setFormMessage(passwordMessage, e.message);
+      }
+    });
+
+    // ანგარიშის წაშლა
+    document.getElementById("deleteAccountBtn")?.addEventListener("click", async () => {
+      const confirmed = await showConfirm(
+        "ნამდვილად გსურთ ანგარიშის წაშლა? ეს მოქმედება შეუქცევადია!",
+        "ანგარიშის წაშლა ⚠️"
+      );
+
+      if (!confirmed) return;
+
+      // მეორე დადასტურება
+      const doubleConfirm = await showConfirm(
+        "ეს უკანასკნელი გაფრთხილებაა. ყველა მონაცემი სამუდამოდ წაიშლება. გსურთ გაგრძელება?",
+        "საბოლოო დადასტურება"
+      );
+
+      if (!doubleConfirm) return;
+
+      try {
+        const delRes = await fetch("https://api.everrest.educata.dev/auth/delete", {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${getAccessToken()}` },
+        });
+
+        if (!delRes.ok) {
+          const errData = await delRes.json();
+          throw new Error(errData.message || "ანგარიშის წაშლა ვერ მოხერხდა");
+        }
+
+        clearTokens();
+        showToast("ანგარიში წაიშალა 🗑", "success");
+        setTimeout(() => {
+          window.location.href = "index.html";
+        }, 1500);
+
+      } catch (e) {
+        showToast("შეცდომა: " + e.message, "error");
+      }
+    });
+
+  } catch (e) {
+    console.error("Profile error:", e);
+    appEl.innerHTML = `
+      <div class="pageTitle">ჩემი პროფილი</div>
+      <div style="text-align:center; padding:50px; color:red;">
+        შეცდომა: ${escapeHtml(e.message)}
+      </div>
+    `;
+  }
+}
+
 // BOOT 
 (async function boot() {
   updateUserUI();
@@ -1394,5 +1905,9 @@ async function renderCart() {
 
   if (page === "cart") {
     await renderCart();
+  }
+
+  if (page === "profile") {
+    await renderProfile();
   }
 })();

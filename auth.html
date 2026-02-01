@@ -35,13 +35,14 @@
         <div class="pageTitle">ავტორიზაცია</div>
         
         <div class="authContainer">
-          <!-- Tab buttons -->
+         
           <div class="authTabs">
             <button class="authTab active" data-tab="signin">შესვლა</button>
             <button class="authTab" data-tab="signup">რეგისტრაცია</button>
+            <button class="authTab" data-tab="recovery">აღდგენა</button>
           </div>
 
-          <!-- Sign In Form -->
+         
           <form class="authForm" id="signinForm">
             <div class="formGroup">
               <label for="signinEmail">ელ-ფოსტა *</label>
@@ -58,7 +59,7 @@
             <div class="authMessage" id="signinMessage"></div>
           </form>
 
-          <!-- Sign Up Form -->
+          
           <form class="authForm hidden" id="signupForm">
             <div class="formRow">
               <div class="formGroup">
@@ -122,6 +123,22 @@
             <button type="submit" class="btn gold authSubmit">რეგისტრაცია</button>
             
             <div class="authMessage" id="signupMessage"></div>
+          </form>
+
+         
+          <form class="authForm hidden" id="recoveryForm">
+            <div class="formGroup">
+              <label for="recoveryEmail">ელ-ფოსტა *</label>
+              <input type="email" id="recoveryEmail" class="input" placeholder="example@mail.com" required />
+            </div>
+
+            <p style="color:var(--muted); font-size:12px; line-height:1.5; margin:0;">
+              შეიყვანეთ რეგისტრაციისას მითითებული ელ-ფოსტა. თუ ანგარიში მოიძებნება, აღდგენის ლინკი გამოგეგზავნებათ.
+            </p>
+
+            <button type="submit" class="btn gold authSubmit">აღდგენის ლინკის გაგზავნა 📧</button>
+            
+            <div class="authMessage" id="recoveryMessage"></div>
           </form>
         </div>
       </section>
