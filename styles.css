@@ -525,10 +525,15 @@ body{
 @media (max-width:1200px){
   .grid{grid-template-columns: repeat(3, minmax(160px, 1fr));}
   .detailWrap{grid-template-columns: 1fr;}
-  .sidebar{display:none}
   .layout{grid-template-columns: 1fr}
   .gallery{max-width: 100%;}
   .detailPanel{max-width: 100%;}
+
+  .sidebar{
+    position:static;
+    height:auto;
+    width:100%;
+  }
 }
 
 @media (max-width:820px){
